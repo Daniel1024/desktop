@@ -94,7 +94,8 @@ enableSourceMaps()
 
 // Tell dugite where to find the git environment,
 // see https://github.com/desktop/dugite/pull/85
-process.env['LOCAL_GIT_DIRECTORY'] = Path.resolve(__dirname, 'git')
+// process.env['LOCAL_GIT_DIRECTORY'] = Path.resolve(__dirname, 'git')
+process.env['LOCAL_GIT_DIRECTORY'] = Path.resolve('C:\\Program Files', 'Git')
 
 // Ensure that dugite infers the GIT_EXEC_PATH
 // based on the LOCAL_GIT_DIRECTORY env variable

@@ -39,7 +39,7 @@ import {
   getExecutableName,
   isPublishable,
   getIconFileName,
-  getDistArchitecture,
+  // getDistArchitecture,
 } from './dist-info'
 import { isCircleCI, isGitHubActions } from './build-platforms'
 
@@ -346,6 +346,7 @@ function copyDependencies() {
     )
   }
 
+  /*
   console.log('  Copying git environment…')
   const gitDir = path.resolve(outRoot, 'git')
   rmSync(gitDir, { recursive: true, force: true })
@@ -379,6 +380,7 @@ function copyDependencies() {
       }
     }
   }
+  */
 
   if (process.platform === 'darwin') {
     console.log('  Copying app-path binary…')
