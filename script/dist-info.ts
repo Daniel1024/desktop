@@ -126,11 +126,14 @@ export function getChannel() {
 
 function getChannelFromBranch(): string | undefined {
   // Branch name format: __release-CHANNEL-DEPLOY_ID
+  return 'beta'
+  /*
   const pieces = getReleaseBranchName().split('-')
   if (pieces.length < 3 || pieces[0] !== '__release') {
     return
   }
   return pieces[1]
+  */
 }
 
 export function getReleaseSHA() {

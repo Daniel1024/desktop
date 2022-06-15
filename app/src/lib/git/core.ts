@@ -444,10 +444,12 @@ function getDescriptionForError(error: DugiteError): string | null {
  * `git pull` these arguments needs to go before the `pull` argument.
  */
 export const gitNetworkArguments = () => [
+  /*
   // Explicitly unset any defined credential helper, we rely on our
   // own askpass for authentication.
   '-c',
   'credential.helper=',
+  */
 ]
 
 /**
