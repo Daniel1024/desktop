@@ -36,6 +36,7 @@
     "rebuild-hard:prod": "yarn clean-slate && yarn build:prod",
     "draft-release": "ts-node -P script/tsconfig.json script/draft-release/index.ts",
     "draft-release:format": "prettier --check --write changelog.json app/package.json && yarn validate-changelog",
+    "draft-release:pr": "ts-node -P script/tsconfig.json script/draft-release/draft-pull-request.ts",
     "validate-changelog": "ts-node -P script/tsconfig.json script/validate-changelog.ts"
   },
   "author": {
@@ -152,7 +153,7 @@
     "@types/webpack-hot-middleware": "^2.25.6",
     "@types/webpack-merge": "^5.0.0",
     "@types/xml2js": "^0.4.0",
-    "electron": "17.0.1",
+    "electron": "19.0.0",
     "electron-builder": "^22.7.0",
     "electron-packager": "^15.1.0",
     "electron-winstaller": "^5.0.0",
