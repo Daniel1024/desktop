@@ -15,11 +15,13 @@ extends:
   - prettier/react
   - plugin:@typescript-eslint/recommended
   - prettier/@typescript-eslint
+  - plugin:github/react
 
 rules:
   ###########
   # PLUGINS #
   ###########
+
   # TYPESCRIPT
   '@typescript-eslint/naming-convention':
     - error
