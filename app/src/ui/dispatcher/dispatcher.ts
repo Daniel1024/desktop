@@ -2373,6 +2373,11 @@ export class Dispatcher {
     return this.statsStore.recordMergeConflictFromExplicitMerge()
   }
 
+  /** Increments the `openSubmoduleFromDiffCount` metric */
+  public recordOpenSubmoduleFromDiffCount() {
+    return this.statsStore.recordOpenSubmoduleFromDiffCount()
+  }
+
   /**
    * Increments the `mergeIntoCurrentBranchMenuCount` metric
    */
@@ -3953,6 +3958,14 @@ export class Dispatcher {
     this.showPopup({
       type: PopupType.UnreachableCommits,
       selectedTab,
+    })
+  }
+
+  public startPullRequest(repository: Repository) {
+    this.appStore._startPullRequest(repository)
+
+    this.showPopup({
+      type: PopupType.StartPullRequest,
     })
   }
 }
