@@ -31,7 +31,6 @@ import { openFile } from './lib/open-file'
 import { AheadBehindStore } from '../lib/stores/ahead-behind-store'
 import { dragAndDropManager } from '../lib/drag-and-drop-manager'
 import { DragType } from '../models/drag-drop'
-import { MultiCommitOperationKind } from '../models/multi-commit-operation'
 import { clamp } from '../lib/clamp'
 
 interface IRepositoryViewProps {
@@ -50,6 +49,7 @@ interface IRepositoryViewProps {
   readonly hideWhitespaceInHistoryDiff: boolean
   readonly showSideBySideDiff: boolean
   readonly askForConfirmationOnDiscardChanges: boolean
+  readonly askForConfirmationOnDiscardStash: boolean
   readonly focusCommitMessage: boolean
   readonly commitSpellcheckEnabled: boolean
   readonly accounts: ReadonlyArray<Account>
@@ -249,10 +249,6 @@ export class RepositoryView extends React.Component<
     } = state
     const { tip } = branchesState
     const currentBranch = tip.kind === TipState.Valid ? tip.branch : null
-    const isCherryPickInProgress =
-      mcos !== null &&
-      mcos.operationDetail.kind === MultiCommitOperationKind.CherryPick
-
     const scrollTop =
       this.forceCompareListScrollTop ||
       this.previousSection === RepositorySectionTab.Changes
@@ -282,7 +278,7 @@ export class RepositoryView extends React.Component<
         compareListScrollTop={scrollTop}
         tagsToPush={tagsToPush}
         aheadBehindStore={aheadBehindStore}
-        isCherryPickInProgress={isCherryPickInProgress}
+        isMultiCommitOperationInProgress={mcos !== null}
       />
     )
   }
@@ -355,6 +351,9 @@ export class RepositoryView extends React.Component<
           fileListWidth={this.props.stashedFilesWidth}
           repository={this.props.repository}
           dispatcher={this.props.dispatcher}
+          askForConfirmationOnDiscardStash={
+            this.props.askForConfirmationOnDiscardStash
+          }
           isWorkingTreeClean={isWorkingTreeClean}
           showSideBySideDiff={this.props.showSideBySideDiff}
           onOpenBinaryFile={this.onOpenBinaryFile}
