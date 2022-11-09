@@ -403,7 +403,6 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private focusCommitMessage = false
   private currentFoldout: Foldout | null = null
   private currentBanner: Banner | null = null
-  private errors: ReadonlyArray<Error> = new Array<Error>()
   private emitQueued = false
 
   private readonly localRepositoryStateLookup = new Map<
@@ -921,7 +920,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       signInState: this.signInStore.getState(),
       currentPopup: this.popupManager.currentPopup,
       currentFoldout: this.currentFoldout,
-      errors: this.errors,
+      errorCount: this.popupManager.getPopupsOfType(PopupType.Error).length,
       showWelcomeFlow: this.showWelcomeFlow,
       focusCommitMessage: this.focusCommitMessage,
       emoji: this.emoji,
@@ -1751,6 +1750,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
     )
     setNumberArray(RecentRepositoriesKey, slicedRecentRepositories)
     this.recentRepositories = slicedRecentRepositories
+    this.notificationsStore.setRecentRepositories(
+      this.repositories.filter(r => this.recentRepositories.includes(r.id))
+    )
     this.emitUpdate()
   }
 
@@ -3533,6 +3535,16 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   /** This shouldn't be called directly. See `Dispatcher`. */
+  public _closePopupById(popupId: string) {
+    if (this.popupManager.currentPopup === null) {
+      return
+    }
+
+    this.popupManager.removePopupById(popupId)
+    this.emitUpdate()
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public async _showFoldout(foldout: Foldout): Promise<void> {
     this.currentFoldout = foldout
     this.emitUpdate()
@@ -3950,17 +3962,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   /** This shouldn't be called directly. See `Dispatcher`. */
   public _pushError(error: Error): Promise<void> {
-    const newErrors = Array.from(this.errors)
-    newErrors.push(error)
-    this.errors = newErrors
-    this.emitUpdate()
-
-    return Promise.resolve()
-  }
-
-  /** This shouldn't be called directly. See `Dispatcher`. */
-  public _clearError(error: Error): Promise<void> {
-    this.errors = this.errors.filter(e => e !== error)
+    this.popupManager.addErrorPopup(error)
     this.emitUpdate()
 
     return Promise.resolve()
