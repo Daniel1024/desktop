@@ -120,5 +120,14 @@ export function enableStackedPopups(): boolean {
 
 /** Should we enable mechanism to prevent closing while the app is updating? */
 export function enablePreventClosingWhileUpdating(): boolean {
+  return true
+}
+
+/** Should we enable the new push-pull-fetch dropdown? */
+export function enablePushPullFetchDropdown(): boolean {
   return enableBetaFeatures()
+}
+
+export function enablePullRequestCommentNotifications(): boolean {
+  return enableDevelopmentFeatures()
 }
