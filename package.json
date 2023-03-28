@@ -33,7 +33,7 @@
     "eslint-check": "eslint --print-config .eslintrc.* | eslint-config-prettier-check",
     "publish": "ts-node -P script/tsconfig.json script/publish.ts",
     "validate-electron-version": "ts-node -P script/tsconfig.json script/validate-electron-version.ts",
-    "clean-slate": "rimraf out node_modules app/node_modules && yarn",
+    "clean-slate": "rm -rf out node_modules app/node_modules && yarn",
     "rebuild-hard:dev": "yarn clean-slate && yarn build:dev",
     "rebuild-hard:prod": "yarn clean-slate && yarn build:prod",
     "draft-release": "ts-node -P script/tsconfig.json script/draft-release/index.ts",
