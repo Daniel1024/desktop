@@ -287,14 +287,7 @@ export class App extends React.Component<IAppProps, IAppState> {
     updateStore.onError(error => {
       log.error(`Error checking for updates`, error)
 
-      // It is possible to obtain an error with no message. This was found to be
-      // the case on a windows instance where there was not space on the hard
-      // drive to download the installer. In this case, we want to override the
-      // error message so the user is not given a blank dialog.
-      const hasErrorMsg = error.message.trim().length > 0
-      this.props.dispatcher.postError(
-        hasErrorMsg ? error : new Error('Checking for updates failed.')
-      )
+      this.props.dispatcher.postError(error)
     })
 
     ipcRenderer.on('launch-timing-stats', (_, stats) => {
@@ -376,9 +369,9 @@ export class App extends React.Component<IAppProps, IAppState> {
       case 'fetch':
         return this.fetch()
       case 'show-changes':
-        return this.showChanges()
+        return this.showChanges(true)
       case 'show-history':
-        return this.showHistory()
+        return this.showHistory(true)
       case 'choose-repository':
         return this.chooseRepository()
       case 'add-local-repository':
@@ -407,7 +400,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         this.props.dispatcher.recordMenuInitiatedUpdate()
         return this.updateBranchWithContributionTargetBranch()
       case 'compare-to-branch':
-        return this.showHistory(true)
+        return this.showHistory(false, true)
       case 'merge-branch':
         this.props.dispatcher.recordMenuInitiatedMerge()
         return this.mergeBranch()
@@ -422,9 +415,9 @@ export class App extends React.Component<IAppProps, IAppState> {
       case 'view-repository-on-github':
         return this.viewRepositoryOnGitHub()
       case 'compare-on-github':
-        return this.openBranchOnGitub('compare')
+        return this.openBranchOnGitHub('compare')
       case 'branch-on-github':
-        return this.openBranchOnGitub('tree')
+        return this.openBranchOnGitHub('tree')
       case 'create-issue-in-repository-on-github':
         return this.openIssueCreationOnGitHub()
       case 'open-in-shell':
@@ -645,7 +638,7 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   private async goToCommitMessage() {
-    await this.showChanges()
+    await this.showChanges(false)
     this.props.dispatcher.setCommitMessageFocus(true)
   }
 
@@ -719,7 +712,7 @@ export class App extends React.Component<IAppProps, IAppState> {
     this.props.dispatcher.startMergeBranchOperation(repository, isSquash)
   }
 
-  private openBranchOnGitub(view: 'tree' | 'compare') {
+  private openBranchOnGitHub(view: 'tree' | 'compare') {
     const htmlURL = this.getCurrentRepositoryGitHubURL()
     if (!htmlURL) {
       return
@@ -892,7 +885,10 @@ export class App extends React.Component<IAppProps, IAppState> {
     this.props.dispatcher.showPopup({ type: PopupType.About })
   }
 
-  private async showHistory(showBranchList: boolean = false) {
+  private async showHistory(
+    shouldFocusHistory: boolean,
+    showBranchList: boolean = false
+  ) {
     const state = this.state.selectedState
     if (state == null || state.type !== SelectionType.Repository) {
       return
@@ -913,19 +909,28 @@ export class App extends React.Component<IAppProps, IAppState> {
       filterText: '',
       showBranchList,
     })
+
+    if (shouldFocusHistory) {
+      this.repositoryViewRef.current?.setFocusHistoryNeeded()
+    }
   }
 
-  private showChanges() {
+  private async showChanges(shouldFocusChanges: boolean) {
     const state = this.state.selectedState
     if (state == null || state.type !== SelectionType.Repository) {
       return
     }
 
     this.props.dispatcher.closeCurrentFoldout()
-    return this.props.dispatcher.changeRepositorySection(
+
+    await this.props.dispatcher.changeRepositorySection(
       state.repository,
       RepositorySectionTab.Changes
     )
+
+    if (shouldFocusChanges) {
+      this.repositoryViewRef.current?.setFocusChangesNeeded()
+    }
   }
 
   private chooseRepository() {
