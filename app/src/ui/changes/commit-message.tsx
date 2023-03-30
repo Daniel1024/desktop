@@ -4,18 +4,18 @@ import {
   AutocompletingTextArea,
   AutocompletingInput,
   IAutocompletionProvider,
-  UserAutocompletionProvider,
+  CoAuthorAutocompletionProvider,
 } from '../autocompletion'
 import { CommitIdentity } from '../../models/commit-identity'
 import { ICommitMessage } from '../../models/commit-message'
 import { Repository } from '../../models/repository'
 import { Button } from '../lib/button'
 import { Loading } from '../lib/loading'
-import { AuthorInput } from '../lib/author-input'
+import { AuthorInput } from '../lib/author-input/author-input'
 import { FocusContainer } from '../lib/focus-container'
 import { Octicon } from '../octicons'
 import * as OcticonSymbol from '../octicons/octicons.generated'
-import { IAuthor } from '../../models/author'
+import { Author, UnknownAuthor, isKnownAuthor } from '../../models/author'
 import { IMenuItem } from '../../lib/menu-item'
 import { Commit, ICommitContext } from '../../models/commit'
 import { startTimer } from '../lib/timing'
@@ -36,7 +36,6 @@ import { isEmptyOrWhitespace } from '../../lib/is-empty-or-whitespace'
 import { TooltippedContent } from '../lib/tooltipped-content'
 import { TooltipDirection } from '../lib/tooltip'
 import { pick } from '../../lib/pick'
-import { delay } from 'lodash'
 
 const addAuthorIcon = {
   w: 18,
@@ -88,7 +87,7 @@ interface ICommitMessageProps {
    * Co-Authored-By commit message trailers depending on whether
    * the user has chosen to do so.
    */
-  readonly coAuthors: ReadonlyArray<IAuthor>
+  readonly coAuthors: ReadonlyArray<Author>
 
   /** Whether this component should show its onboarding tutorial nudge arrow */
   readonly shouldNudge?: boolean
@@ -98,9 +97,15 @@ interface ICommitMessageProps {
   /** Optional text to override default commit button text */
   readonly commitButtonText?: string
 
+  readonly mostRecentLocalCommit: Commit | null
+
   /** Whether or not to remember the coauthors in the changes state */
-  readonly onCoAuthorsUpdated: (coAuthors: ReadonlyArray<IAuthor>) => void
+  readonly onCoAuthorsUpdated: (coAuthors: ReadonlyArray<Author>) => void
   readonly onShowCoAuthoredByChanged: (showCoAuthoredBy: boolean) => void
+  readonly onConfirmCommitWithUnknownCoAuthors: (
+    coAuthors: ReadonlyArray<UnknownAuthor>,
+    onCommitAnyway: () => void
+  ) => void
 
   /**
    * Called when the component unmounts to give callers the ability
@@ -133,7 +138,10 @@ interface ICommitMessageState {
   readonly summary: string
   readonly description: string | null
 
-  readonly userAutocompletionProvider: UserAutocompletionProvider | null
+  readonly commitMessageAutocompletionProviders: ReadonlyArray<
+    IAutocompletionProvider<any>
+  >
+  readonly coAuthorAutocompletionProvider: CoAuthorAutocompletionProvider | null
 
   /**
    * Whether or not the description text area has more text that's
@@ -143,15 +151,21 @@ interface ICommitMessageState {
   readonly descriptionObscured: boolean
 
   readonly isCommittingStatusMessage: string
-
-  readonly startedCommitting: number | null
 }
 
-function findUserAutoCompleteProvider(
+function findCommitMessageAutoCompleteProvider(
   providers: ReadonlyArray<IAutocompletionProvider<any>>
-): UserAutocompletionProvider | null {
+): ReadonlyArray<IAutocompletionProvider<any>> {
+  return providers.filter(
+    provider => !(provider instanceof CoAuthorAutocompletionProvider)
+  )
+}
+
+function findCoAuthorAutoCompleteProvider(
+  providers: ReadonlyArray<IAutocompletionProvider<any>>
+): CoAuthorAutocompletionProvider | null {
   for (const provider of providers) {
-    if (provider instanceof UserAutocompletionProvider) {
+    if (provider instanceof CoAuthorAutocompletionProvider) {
       return provider
     }
   }
@@ -179,12 +193,13 @@ export class CommitMessage extends React.Component<
     this.state = {
       summary: commitMessage ? commitMessage.summary : '',
       description: commitMessage ? commitMessage.description : null,
-      userAutocompletionProvider: findUserAutoCompleteProvider(
+      commitMessageAutocompletionProviders:
+        findCommitMessageAutoCompleteProvider(props.autocompletionProviders),
+      coAuthorAutocompletionProvider: findCoAuthorAutoCompleteProvider(
         props.autocompletionProviders
       ),
       descriptionObscured: false,
       isCommittingStatusMessage: '',
-      startedCommitting: null,
     }
   }
 
@@ -247,7 +262,11 @@ export class CommitMessage extends React.Component<
       this.props.autocompletionProviders !== prevProps.autocompletionProviders
     ) {
       this.setState({
-        userAutocompletionProvider: findUserAutoCompleteProvider(
+        commitMessageAutocompletionProviders:
+          findCommitMessageAutoCompleteProvider(
+            this.props.autocompletionProviders
+          ),
+        coAuthorAutocompletionProvider: findCoAuthorAutoCompleteProvider(
           this.props.autocompletionProviders
         ),
       })
@@ -274,6 +293,16 @@ export class CommitMessage extends React.Component<
       this.state.isCommittingStatusMessage === ''
     ) {
       this.setState({ isCommittingStatusMessage: this.getButtonTitle() })
+    }
+
+    if (
+      prevProps.mostRecentLocalCommit?.sha !==
+        this.props.mostRecentLocalCommit?.sha &&
+      this.props.mostRecentLocalCommit !== null
+    ) {
+      this.setState({
+        isCommittingStatusMessage: `Committed Just now - ${this.props.mostRecentLocalCommit.summary} (Sha: ${this.props.mostRecentLocalCommit.shortSha})`,
+      })
     }
   }
 
@@ -304,7 +333,9 @@ export class CommitMessage extends React.Component<
     const { coAuthors } = this.props
     const token = 'Co-Authored-By'
     return this.isCoAuthorInputEnabled
-      ? coAuthors.map(a => ({ token, value: `${a.name} <${a.email}>` }))
+      ? coAuthors
+          .filter(isKnownAuthor)
+          .map(a => ({ token, value: `${a.name} <${a.email}>` }))
       : []
   }
 
@@ -314,11 +345,29 @@ export class CommitMessage extends React.Component<
       : this.state.summary
   }
 
-  private async createCommit() {
+  private forceCreateCommit = async () => {
+    return this.createCommit(false)
+  }
+
+  private async createCommit(warnUnknownAuthors: boolean = true) {
     const { description } = this.state
 
     if (!this.canCommit() && !this.canAmend()) {
       return
+    }
+
+    if (warnUnknownAuthors) {
+      const unknownAuthors = this.props.coAuthors.filter(
+        (author): author is UnknownAuthor => !isKnownAuthor(author)
+      )
+
+      if (unknownAuthors.length > 0) {
+        this.props.onConfirmCommitWithUnknownCoAuthors(
+          unknownAuthors,
+          this.forceCreateCommit
+        )
+        return
+      }
     }
 
     const trailers = this.getCoAuthorTrailers()
@@ -331,32 +380,12 @@ export class CommitMessage extends React.Component<
     }
 
     const timer = startTimer('create commit', this.props.repository)
-    this.setState({ startedCommitting: new Date().getTime() })
     const commitCreated = await this.props.onCreateCommit(commitContext)
     timer.done()
 
     if (commitCreated) {
       this.clearCommitMessage()
-      this.updateCommitStatusMessage()
     }
-  }
-
-  /** We want to give a couple seconds for voice reader to be able to read the
-   * in progress message when commit is fast. */
-  private updateCommitStatusMessage() {
-    const timeSinceStartedCommitting = Math.abs(
-      (this.state.startedCommitting ?? new Date().getTime()) -
-        new Date().getTime()
-    )
-    const delayed = 2000 - timeSinceStartedCommitting
-    delay(
-      () =>
-        this.setState({
-          isCommittingStatusMessage: 'Committed Just Now',
-          startedCommitting: null,
-        }),
-      delayed > 0 ? delayed : 0
-    )
   }
 
   private canCommit(): boolean {
@@ -459,7 +488,7 @@ export class CommitMessage extends React.Component<
     return this.props.showCoAuthoredBy && this.isCoAuthorInputEnabled
   }
 
-  private onCoAuthorsUpdated = (coAuthors: ReadonlyArray<IAuthor>) =>
+  private onCoAuthorsUpdated = (coAuthors: ReadonlyArray<Author>) =>
     this.props.onCoAuthorsUpdated(coAuthors)
 
   private renderCoAuthorInput() {
@@ -467,7 +496,7 @@ export class CommitMessage extends React.Component<
       return null
     }
 
-    const autocompletionProvider = this.state.userAutocompletionProvider
+    const autocompletionProvider = this.state.coAuthorAutocompletionProvider
 
     if (!autocompletionProvider) {
       return null
@@ -856,7 +885,9 @@ export class CommitMessage extends React.Component<
             value={this.state.summary}
             onValueChanged={this.onSummaryChanged}
             onElementRef={this.onSummaryInputRef}
-            autocompletionProviders={this.props.autocompletionProviders}
+            autocompletionProviders={
+              this.state.commitMessageAutocompletionProviders
+            }
             onContextMenu={this.onAutocompletingInputContextMenu}
             disabled={this.props.isCommitting === true}
             spellcheck={this.props.commitSpellcheckEnabled}
@@ -873,7 +904,9 @@ export class CommitMessage extends React.Component<
             placeholder="Description"
             value={this.state.description || ''}
             onValueChanged={this.onDescriptionChanged}
-            autocompletionProviders={this.props.autocompletionProviders}
+            autocompletionProviders={
+              this.state.commitMessageAutocompletionProviders
+            }
             ref={this.onDescriptionFieldRef}
             onElementRef={this.onDescriptionTextAreaRef}
             onContextMenu={this.onAutocompletingInputContextMenu}
@@ -888,7 +921,7 @@ export class CommitMessage extends React.Component<
         {this.renderPermissionsCommitWarning()}
 
         {this.renderSubmitButton()}
-        <span className="sr-only" aria-live="polite">
+        <span className="sr-only" aria-live="polite" aria-atomic="true">
           {this.state.isCommittingStatusMessage}
         </span>
       </div>
