@@ -580,6 +580,7 @@ export class SideBySideDiff extends React.Component<
                 afterTokens={this.state.afterTokens}
                 temporarySelection={this.state.temporarySelection}
                 hoveredHunk={this.state.hoveredHunk}
+                showDiffCheckMarks={this.props.showDiffCheckMarks}
                 isSelectable={canSelect(this.props.file)}
                 fileSelection={this.getSelection()}
                 // rows are memoized and include things like the
@@ -663,7 +664,6 @@ export class SideBySideDiff extends React.Component<
       isFirst: prev === undefined || !selectableType.includes(prev.type),
       isLast: next === undefined || !selectableType.includes(next.type),
       isHovered: hoveredHunk === row.hunkStartLine,
-      isFocused: true, // focusedHunk === row.hunkStartLine, - To be added in later PR
       selectionState: selection.isRangeSelected(from, to - from + 1),
       height: this.getRowSelectableGroupHeight(row.hunkStartLine),
       lineNumbers: Array.from(lineNumbers),
