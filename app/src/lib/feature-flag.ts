@@ -25,7 +25,8 @@ function enableDevelopmentFeatures(): boolean {
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 //@ts-ignore: this will be used again in the future
 function enableBetaFeatures(): boolean {
-  return enableDevelopmentFeatures() || __RELEASE_CHANNEL__ === 'beta'
+  // return enableDevelopmentFeatures() || __RELEASE_CHANNEL__ === 'beta'
+  return true
 }
 
 /** Should git pass `--recurse-submodules` when performing operations? */
